@@ -1,0 +1,32 @@
+services:
+  web:
+    image: nginx:alpine
+    # We map the host's protected stack folder to Nginx's default HTML directory
+    volumes:
+      - type: bind
+        source: ${DATA_PATH}
+        target: /usr/share/nginx/html
+        read_only: true
+    networks:
+      - traefik-public
+    deploy:
+      replicas: 3
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '${MAX_CPUS:-0.20}'
+          memory: ${MAX_RAM:-128M}
+      labels:
+        - "traefik.enable=true"
+        # Dynamic routing based on the domain you send to the API
+        - "traefik.http.routers.${STACK_NAME}.rule=Host(`${DOMAIN_NAME}`)"
+        - "traefik.http.routers.${STACK_NAME}.entrypoints=websecure"
+        - "traefik.http.routers.${STACK_NAME}.tls.certresolver=myresolver"
+        - "traefik.http.services.${STACK_NAME}.loadbalancer.server.port=80"
+        # Metadata for your account management
+        - "owner.account=${ACCOUNT_ID}"
+
+networks:
+  traefik-public:
+    external: true
