@@ -1,4 +1,0 @@
-docker
-psutil
-flask
-werkzeug
