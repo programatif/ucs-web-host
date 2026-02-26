@@ -1,0 +1,53 @@
+services:
+  traefik:
+    image: traefik:v3.6.1
+    command:
+      - "--providers.swarm.endpoint=unix:///var/run/docker.sock" # New Swarm provider
+      - "--providers.swarm.exposedByDefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      # Automatic HTTPS Redirection
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+      # Let's Encrypt
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=harrygtiffany@gmail.com"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./traefik/acme.json:/letsencrypt/acme.json"
+    networks:
+      - public
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+  controller:
+    # uncomment build when building (docker compose build), once image made, swap comment from build to image (if deploying to swarm)
+    #build: ./controller
+    image: controller-controller:latest
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock" # RW access for the API
+      - "./controller/templates:/app/templates"
+      - "/var/lib/docker-stacks:/var/lib/docker-stacks"
+    networks:
+      - public
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.api.rule=Host(`swarm-controller.harrys-cv.me`)"
+        - "traefik.http.routers.api.entrypoints=websecure"
+        - "traefik.http.routers.api.tls.certresolver=myresolver"
+        - "traefik.http.services.api.loadbalancer.server.port=5000"
+
+networks:
+  public:
+    driver: overlay
+    attachable: true  # <--- Add this line
+    external: false
+    name: traefik-public
